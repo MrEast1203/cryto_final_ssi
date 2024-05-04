@@ -13,6 +13,7 @@ import random
 import string
 import base64
 
+import uuid
 # Shared storage for responses
 response_storage = {}
 response_received = threading.Event()
@@ -142,6 +143,38 @@ def sign_challenge(challenge, private):
     base64_signature = base64.b64encode(signature).decode()
     return base64_signature
 
+def create_vc(id, holder_did, issuer_did, date, name, degree_type, degree_name, university, GPA):
+    vc = {
+        "@context": [
+            "https://www.w3.org/ns/credentials/v2",
+            "https://www.w3.org/ns/credentials/examples/v2"
+        ],
+        "id": id,
+        "type": ["VerifiableCredential", "UniversityDegreeCredential"],
+        "issuer": issuer_did,
+        "validFrom": date,
+        "credentialSubject": {
+          "id": holder_did,
+          "name": name,
+          "degree": {
+            "type": degree_type,
+            "name": degree_name
+          },
+          "university": university,
+          "GPA": GPA
+        }
+    }
+    return vc
+def sign_vc(vc, private):
+    private_key = '-----BEGIN RSA PRIVATE KEY-----\n'
+    private_key += private
+    private_key += '\n-----END RSA PRIVATE KEY-----\n'
+    private_key_pkcs = rsa.PrivateKey.load_pkcs1(private_key.encode('utf-8'))
+    vc_str = json.dumps(vc)
+    signature = rsa.sign(vc_str.encode('utf-8'), private_key_pkcs, 'SHA-1')
+    vc["signature"] = base64.b64encode(signature).decode()
+    return vc
+
 if __name__ == "__main__":
     target_host = "127.0.0.1"
     target_port = int(sys.argv[1])
@@ -159,6 +192,7 @@ if __name__ == "__main__":
         "5": "get_did_document",
         "6": "did_operation",
         "7": "verify_vc",
+        "8": "get_transaction_message"
     }
     did_command_dict = {
         "1": "check_did_holder",
@@ -175,6 +209,7 @@ if __name__ == "__main__":
         print("5. get_did_document")
         print("6. did_operation")
         print("7. verify_vc")
+        print("8. get_transaction_message")
         command = input("Command: ")
         if str(command) not in command_dict.keys():
             print("Unknown command.")
@@ -190,6 +225,11 @@ if __name__ == "__main__":
         elif command_dict[str(command)] == "get_balance":
             address = input("Address: ")
             message['address'] = address
+            client.send(pickle.dumps(message))
+
+        elif command_dict[str(command)] == "get_transaction_message":
+            did = input("DID: ")
+            message['address'] = did.replace("did:example:", "")
             client.send(pickle.dumps(message))
 
         elif command_dict[str(command)] == "transaction":
@@ -228,6 +268,7 @@ if __name__ == "__main__":
             print("Command list:")
             print("1. check_did_holder")
             print("2. sign_challenge")
+            print("3. issue_credential")
             operation = input("Operation: ")
             if str(operation) not in did_command_dict.keys():
                 print("Unknown command.")
@@ -255,8 +296,47 @@ if __name__ == "__main__":
                 challenge = input("Challenge: ")
                 signed_challenge = sign_challenge(challenge, private_key)
                 print("Signed challenge:", signed_challenge)
+            elif did_command_dict[str(operation)] == "issue_credential":
+                holder_did = input("Holder DID: ")
+                name = input("Name: ")
+                university = input("University: ")
+                degree_type = input("Degree type: ")
+                degree_name = input("Degree name: ")
+                date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+                GPA = input("GPA: ")
+                issuer_did = did
+                id = str(uuid.uuid4())
+                vc = create_vc(id, holder_did, issuer_did, date, name, degree_type, degree_name, university, GPA)
+                signed_vc=sign_vc(vc, private_key)
+                with open('vc.json', 'w') as file:
+                    json.dump(signed_vc, file, indent=4)
+                address = did.replace("did:example:", "")
+                new_transaction = initialize_transaction(
+                    address, address, 0, 0, f"issue_credential: {id}"
+                )
+                signature = sign_transaction(new_transaction, private_key)
+                message["request"] = "transaction"
+                message["data"] = new_transaction
+                message["signature"] = signature
+                client.send(pickle.dumps(message))
 
             response_received.clear()
+        elif command_dict[str(command)] == "verify_vc":
+            file_name = input("File name: ")
+            with open(file_name, 'r') as file:
+                vc = json.load(file)
+            signature = vc.pop('signature')
+            signature = base64.b64decode(signature.encode())
+            issuer_did = vc['issuer']
+            issuer_public = issuer_did.replace("did:example:", "")
+            issuer_public_key = '-----BEGIN RSA PUBLIC KEY-----\n'
+            issuer_public_key += issuer_public
+            issuer_public_key += '\n-----END RSA PUBLIC KEY-----\n'
+            public_key_pkcs = rsa.PublicKey.load_pkcs1(issuer_public_key.encode('utf-8'))
+            if rsa.verify(json.dumps(vc).encode('utf-8'), signature, public_key_pkcs):
+                print("Success, VC is verified.")
+            else:
+                print("Error, VC is not verified.")
         else:
             print("Unknown command.")
         time.sleep(1)

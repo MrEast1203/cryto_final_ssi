@@ -169,7 +169,7 @@ class BlockChain:
             average_time_consumed = round((finish - start) / (self.adjust_difficulty_blocks), 2)
             if average_time_consumed > self.block_time:
                 print(f"Average block time:{average_time_consumed}s. Lower the difficulty")
-                self.difficulty = 6
+                self.difficulty = 5
             else:
                 print(f"Average block time:{average_time_consumed}s. High up the difficulty")
                 self.difficulty = 6
@@ -202,6 +202,14 @@ class BlockChain:
         else:
             return "DID not found!"
                     
+    def get_transaction_message(self, account):
+        message = []
+        for block in self.chain:
+            for transaction in block.transactions:
+                if transaction.receiver == account and transaction.message!='':
+                    message.append(transaction.message)
+        return message
+
     def verify_blockchain(self):
         previous_hash = ''
         for idx,block in enumerate(self.chain):
@@ -320,6 +328,14 @@ class BlockChain:
                         response = {
                             "did": did,
                             "document": document
+                        }
+                    elif parsed_message["request"] == "get_transaction_message":
+                        print("Start to get the transaction message for client...")
+                        address = parsed_message["address"]
+                        message = self.get_transaction_message(address)
+                        response = {
+                            "address": address,
+                            "message": message
                         }
                     elif parsed_message["request"] == "transaction":
                         print("Start to transaction for client...")
