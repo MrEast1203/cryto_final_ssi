@@ -172,7 +172,7 @@ class BlockChain:
                 self.difficulty = 5
             else:
                 print(f"Average block time:{average_time_consumed}s. High up the difficulty")
-                self.difficulty = 6
+                self.difficulty = 5
 
     def get_balance(self, account):
         balance = 0

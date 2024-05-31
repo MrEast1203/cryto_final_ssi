@@ -143,7 +143,7 @@ def sign_challenge(challenge, private):
     base64_signature = base64.b64encode(signature).decode()
     return base64_signature
 
-def create_vc(id, holder_did, issuer_did, date, name, degree_type, degree_name, university, GPA):
+def create_vc(id, holder_did, issuer_did, date, name, degree_type, degree_name, university):
     vc = {
         "@context": [
             "https://www.w3.org/ns/credentials/v2",
@@ -161,7 +161,6 @@ def create_vc(id, holder_did, issuer_did, date, name, degree_type, degree_name, 
             "name": degree_name
           },
           "university": university,
-          "GPA": GPA
         }
     }
     return vc
@@ -303,12 +302,11 @@ if __name__ == "__main__":
                 degree_type = input("Degree type: ")
                 degree_name = input("Degree name: ")
                 date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-                GPA = input("GPA: ")
                 issuer_did = did
                 id = str(uuid.uuid4())
-                vc = create_vc(id, holder_did, issuer_did, date, name, degree_type, degree_name, university, GPA)
+                vc = create_vc(id, holder_did, issuer_did, date, name, degree_type, degree_name, university)
                 signed_vc=sign_vc(vc, private_key)
-                with open('vc.json', 'w') as file:
+                with open(f'verifiable_credential/vc-{name}.json', 'w') as file:
                     json.dump(signed_vc, file, indent=4)
                 address = did.replace("did:example:", "")
                 new_transaction = initialize_transaction(
